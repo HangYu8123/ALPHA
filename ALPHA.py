@@ -5,12 +5,10 @@ Created on Wed Sep 23 18:26:12 2020
 @author: Hang Yu
 """
 '''
-things need to be done:
-    1. learning experience while there is a feedback
-    2. an auto coder that reduces img 
-    3. loss func
-
-
+UPDATE FOR RSS 2021
+TEST VERSION
+BUG EXISTED
+ESTIMATION DOES NOT PERFROM AS EXPECTED, REMEMBER TO FIX
 '''
 import DQN
 import DFN
@@ -78,7 +76,7 @@ batch_size = 32
 print_interval = 1000
 log_interval = 1000
 learning_start = 1000
-feedback_learning_start = 500
+feedback_learning_start = 100
 win_reward = 18     # Pong-v4
 win_break = True
 #num_of_feedback=10000000
@@ -100,7 +98,7 @@ oracle.DQN.load_state_dict(torch.load('PongGame.pth'))
 def DPS(episodes,model = 0):
     
     q_agent=DQN.DQNAgent(in_channels = state_channel, action_space= action_space, USE_CUDA = USE_CUDA, lr = learning_rate)
-    qe_agent=DQN.DQNAgent(in_channels = state_channel, action_space= action_space, USE_CUDA = USE_CUDA, lr = learning_rate)
+    #qe_agent=DQN.DQNAgent(in_channels = state_channel, action_space= action_space, USE_CUDA = USE_CUDA, lr = learning_rate)
     f_agent = DFN.DQNAgent(in_channels = state_channel, action_space= action_space, USE_CUDA = USE_CUDA, lr = learning_rate)
     e_agent = DEN.DQNAgent(in_channels = state_channel, action_space= action_space, USE_CUDA = USE_CUDA, lr = learning_rate)
     episode_rewards = []
@@ -119,6 +117,7 @@ def DPS(episodes,model = 0):
     end_f=0
     prt=False
     
+  # LEARNING FROM DEMO  
     for j in range(model):
         frame = env.reset()
         while(True):
@@ -128,16 +127,10 @@ def DPS(episodes,model = 0):
             action = np.random.choice([0,1,2,3,4,5], p = oracle.act(state_tensor, 0) )
             next_frame, reward, done, _ = env.step(action)
             q_agent.memory_buffer.push(frame, action, reward, next_frame, done)     
-            # if q_agent.memory_buffer.size() >= learning_start:
-            #     loss = q_agent.learn_from_experience(batch_size)
-            #     #losses.append(loss)
-            # if end_f % log_interval == 0:
-            #     q_agent.DQN_target.load_state_dict(q_agent.DQN.state_dict())
             f_agent.memory_buffer.push(frame, action, 1, next_frame, done)
-            # if f_agent.memory_buffer.size() >= feedback_learning_start:
-            #     fb_loss=f_agent.learn_from_experience(batch_size)
-            # if end_f % log_interval == 0:
-            #     f_agent.DQN_target.load_state_dict(f_agent.DQN.state_dict())
+            if f_agent.memory_buffer.size() >= feedback_learning_start:
+                fb_loss=f_agent.learn_from_experience(batch_size)
+
             frame = next_frame
             if done:
                 break  
@@ -154,7 +147,7 @@ def DPS(episodes,model = 0):
             epsilon = epsilon_by_frame(end_f)
             state_tensor = q_agent.observe(frame) 
             prob = q_agent.act(state_tensor, epsilon) 
-            + weight_by_reward(np.sum(episode_rewards))* 0.3 *( f_agent.act(state_tensor, 0))
+            + weight_by_reward(np.sum(episode_rewards)) *( f_agent.act(state_tensor, 0))
             prob = prob/sum(prob)
             if np.isnan(prob).any():
                 prob = [1/6, 1/6, 1/6, 1/6, 1/6, 1/6]
@@ -178,7 +171,7 @@ def DPS(episodes,model = 0):
             loss = 0
             fb_loss=0
             #est = e_agent.estimation(next_state_tensor) - e_agent.estimation(state_tensor)
-            feedback += oracle.estimation(next_state_tensor) - oracle.estimation(state_tensor) + reward
+            feedback += oracle.estimation(next_state_tensor) - oracle.estimation(state_tensor) 
             if cnt % 5 == 0 and sof > 0:
                 sof -= 1
                 if action == np.random.choice([0,1,2,3,4,5], p = oracle.act(state_tensor , 0)):
@@ -202,21 +195,15 @@ def DPS(episodes,model = 0):
             # Q learning
             
             
-            # if qe_agent.memory_buffer.size() >= learning_start:
-            #     loss = qe_agent.learn_from_experience(batch_size)
-            #     losses.append(loss)
-            # if end_f % log_interval == 0:
-            #     qe_agent.DQN_target.load_state_dict(qe_agent.DQN.state_dict())
-            # #QE learning
             
             
             if cnt % 10 == 0 and sof > 0:
                 sof -= 1
                 est = oracle.estimation(state_tensor)
                 e_agent.memory_buffer.push(frame, 0, est, next_frame, done) 
-                
                 est = oracle.estimation(next_state_tensor)
                 e_agent.memory_buffer.push(next_frame, 0, est, next_frame, done) 
+            # LEARNING ESTIMATION
             
             
             
@@ -230,11 +217,11 @@ def DPS(episodes,model = 0):
 
     
 
-            # if e_agent.memory_buffer.size() >= feedback_learning_start:
-            #     e_loss=e_agent.learn_from_experience(batch_size)
-            # if end_f % log_interval == 0:
-            #     e_agent.DQN_target.load_state_dict(e_agent.DQN.state_dict())
-            # #E learning
+            if e_agent.memory_buffer.size() >= feedback_learning_start:
+                e_loss=e_agent.learn_from_experience(batch_size)
+            if end_f % log_interval == 0:
+                e_agent.DQN_target.load_state_dict(e_agent.DQN.state_dict())
+            #E learning
 
  
             
